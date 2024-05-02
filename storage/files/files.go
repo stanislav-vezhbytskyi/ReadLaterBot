@@ -57,7 +57,7 @@ func (s *Storage) PickRandom(userName string) (*storage.Page, error) {
 		return nil, err
 	}
 	if len(files) == 0 {
-		return nil, errors.New("no saved pages")
+		return nil, storage.ErrNoSavedPages
 	}
 	rand.Seed(time.Now().UnixNano())
 	n := rand.Intn(len(files))
@@ -89,13 +89,13 @@ func (s Storage) decodePage(filePath string) (*storage.Page, error) {
 	}
 
 	var p storage.Page
-
 	if err := gob.NewDecoder(f).Decode(&p); err != nil {
 		return nil, err
 	}
-	return &p, err
 
 	f.Close()
+
+	return &p, err
 }
 
 func fileName(p *storage.Page) (string, error) {
