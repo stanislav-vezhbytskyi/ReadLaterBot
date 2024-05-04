@@ -15,6 +15,11 @@ type Storage struct {
 	basePath string
 }
 
+func (s Storage) IsExists(p *storage.Page) (bool, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 const (
 	defaultPerm = 0774
 )
@@ -23,7 +28,7 @@ func New(basePath string) Storage {
 	return Storage{basePath: basePath}
 }
 
-func (s *Storage) Save(page *storage.Page) error {
+func (s Storage) Save(page *storage.Page) (err error) {
 	fPath := filepath.Join(s.basePath, page.UserName)
 
 	if err := os.MkdirAll(fPath, defaultPerm); err != nil {
@@ -49,7 +54,7 @@ func (s *Storage) Save(page *storage.Page) error {
 	return nil
 }
 
-func (s *Storage) PickRandom(userName string) (*storage.Page, error) {
+func (s Storage) PickRandom(userName string) (*storage.Page, error) {
 	fPath := filepath.Join(s.basePath, userName)
 
 	files, err := os.ReadDir(fPath)
@@ -65,6 +70,31 @@ func (s *Storage) PickRandom(userName string) (*storage.Page, error) {
 	file := files[n]
 
 	return s.decodePage(filepath.Join(fPath, file.Name()))
+}
+
+func (s Storage) PickAll(userName string) ([]*storage.Page, error) {
+	fPath := filepath.Join(s.basePath, userName)
+
+	files, err := os.ReadDir(fPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return nil, storage.ErrNoSavedPages
+	}
+	rand.Seed(time.Now().UnixNano())
+
+	var pages []*storage.Page
+
+	for _, file := range files {
+		decodedPage, err := s.decodePage(filepath.Join(fPath, file.Name()))
+		if err != nil {
+			return nil, err
+		}
+
+		pages = append(pages, decodedPage)
+	}
+	return pages, nil
 }
 
 func (s Storage) Remove(p *storage.Page) error {

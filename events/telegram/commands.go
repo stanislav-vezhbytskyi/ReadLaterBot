@@ -1,82 +1,127 @@
 package telegram
 
 import (
+	"ReadLaterBot/lib/e"
 	"ReadLaterBot/storage"
+	"ReadLaterBot/webparser"
+	_ "ReadLaterBot/webparser"
 	"errors"
+	"fmt"
 	"log"
 	"net/url"
 	"strings"
 )
 
 const (
-	RndCmd   = "/rnd"
-	HelpCmd  = "/help"
-	StartCmd = "/start"
+	RndCmd      = "/rnd"
+	HelpCmd     = "/help"
+	StartCmd    = "/start"
+	GetAllPages = "/getall"
 )
 
 func (p *Processor) doCmd(text string, chatID int, username string) error {
 	text = strings.TrimSpace(text)
 
-	log.Printf("got new command %s from %s", text, username)
+	log.Printf("got new command '%s' from '%s", text, username)
 
 	if isAddCmd(text) {
-		p.savePage(chatID, text, username)
+		return p.savePage(chatID, text, username)
 	}
 
 	switch text {
 	case RndCmd:
-
-		return p.sendRnd(chatID, username)
+		return p.sendRandom(chatID, username)
 	case HelpCmd:
-		return p.sendHelp(chatID, username)
+		return p.sendHelp(chatID)
 	case StartCmd:
-		return p.sendHello(chatID, username)
-
+		return p.sendHello(chatID)
+	case GetAllPages:
+		return p.sendAllPages(chatID, username)
 	default:
-		return p.tg.SendMessage(chatID, "sorry, I don't now this command")
-
+		return p.tg.SendMessage(chatID, "msgUnknownCommand")
 	}
 }
 
-func (p *Processor) savePage(chatID int, pageURL string, username string) error {
+func (p *Processor) sendAllPages(chatID int, username string) (err error) {
+	defer func() { err = e.WrapIfErr("can't do command: can't send random", err) }()
+
+	pages, err := p.storage.PickAll(username)
+	if err != nil && !errors.Is(err, storage.ErrNoSavedPages) {
+		return err
+	}
+	if errors.Is(err, storage.ErrNoSavedPages) {
+		return p.tg.SendMessage(chatID, "msgNoSavedPages")
+	}
+	for i, page := range pages {
+		title, err := webparser.GetTitle(page.URL)
+		if err != nil {
+			return err
+		}
+
+		if err := p.tg.SendMessage(chatID, fmt.Sprintf("Page %d: %s: [[link](%s)]", i+1, title, page.URL)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Processor) savePage(chatID int, pageURL string, username string) (err error) {
+	defer func() { err = e.WrapIfErr("can't do command: save page", err) }()
+
 	page := &storage.Page{
 		URL:      pageURL,
 		UserName: username,
 	}
 
-	isExist, err := p.storage.IsExists(page)
+	/*isExists, err := p.storage.IsExists(page)
 	if err != nil {
 		return err
 	}
-	if isExist {
-		return p.tg.SendMessage(chatID, "this page already exists")
+	if isExists {
+		return p.tg.SendMessage(chatID, "msgAlreadyExists")
 	}
+	*/
 	if err := p.storage.Save(page); err != nil {
 		return err
 	}
-	return p.tg.SendMessage(chatID, "page saved successfully")
-}
 
-func (p *Processor) sendRnd(chatID int, username string) error {
-	rndPage, err := p.storage.PickRandom(username)
-	if err != nil && !errors.Is(err, storage.ErrNoSavedPages) {
+	if err := p.tg.SendMessage(chatID, msgSaved); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (p *Processor) sendRandom(chatID int, username string) (err error) {
+	defer func() { err = e.WrapIfErr("can't do command: can't send random", err) }()
+
+	page, err := p.storage.PickRandom(username)
+	if err != nil && !errors.Is(err, storage.ErrNoSavedPages) {
+		return err
+	}
 	if errors.Is(err, storage.ErrNoSavedPages) {
-		return p.tg.SendMessage(chatID, storage.ErrNoSavedPages.Error())
+		return p.tg.SendMessage(chatID, "msgNoSavedPages")
 	}
 
-	return p.tg.SendMessage(chatID, rndPage.URL)
+	title, err := webparser.GetTitle(page.URL)
+	if err != nil {
+		return err
+	}
 
+	if err := p.tg.SendMessage(chatID, fmt.Sprintf("%s: [[link](%s)]", title, page.URL)); err != nil {
+		return err
+	}
+
+	return nil
+	//return p.storage.Remove(page)
 }
 
-func (p *Processor) sendHelp(chatID int, username string) error {
-	return p.tg.SendMessage(chatID, "I'm too lazy to write it now, sorry :)")
+func (p *Processor) sendHelp(chatID int) error {
+	return p.tg.SendMessage(chatID, msgHelp)
 }
 
-func (p *Processor) sendHello(chatID int, username string) error {
-	return p.tg.SendMessage(chatID, "I'm too lazy to write it now, sorry :)")
+func (p *Processor) sendHello(chatID int) error {
+	return p.tg.SendMessage(chatID, msgHello)
 }
 
 func isAddCmd(text string) bool {

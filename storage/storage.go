@@ -12,6 +12,7 @@ type Storage interface {
 	PickRandom(userName string) (*Page, error)
 	Remove(p *Page) error
 	IsExists(p *Page) (bool, error)
+	PickAll(username string) ([]*Page, error)
 }
 
 var ErrNoSavedPages = errors.New("no saved pages")
