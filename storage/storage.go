@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -8,11 +9,12 @@ import (
 )
 
 type Storage interface {
-	Save(p *Page) error
-	PickRandom(userName string) (*Page, error)
-	Remove(p *Page) error
-	IsExists(p *Page) (bool, error)
-	PickAll(username string) ([]*Page, error)
+	Save(ctx context.Context, p *Page) error
+	PickRandom(ctx context.Context, userName string) (*Page, error)
+	RemoveByPage(ctx context.Context, p *Page) error
+	IsExists(ctx context.Context, p *Page) (bool, error)
+	PickAll(ctx context.Context, username string) ([]*Page, error)
+	RemoveByIndex(ctx context.Context, username string, index int) error
 }
 
 var ErrNoSavedPages = errors.New("no saved pages")
@@ -20,6 +22,7 @@ var ErrNoSavedPages = errors.New("no saved pages")
 type Page struct {
 	URL      string
 	UserName string
+	Title    string
 }
 
 func (p *Page) Hash() (string, error) {
