@@ -4,21 +4,32 @@ import (
 	"ReadLaterBot/clients/telegram-client"
 	"ReadLaterBot/consumer/event-consumer"
 	"ReadLaterBot/events/telegram"
-	"ReadLaterBot/storage/files"
+	"ReadLaterBot/storage/sqlite"
 	"flag"
+	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/net/context"
 	"log"
 )
 
 const (
 	tgBotHost   = "api.telegram.org"
-	storagePath = "storage"
+	storagePath = "data/sqlite/storage.db"
 	batchSize   = 100
 )
 
 func main() {
+	storage, err := sqlite.New(storagePath)
+	if err != nil {
+		log.Fatal("can't connect to storage: ", err)
+	}
+
+	if err := storage.Init(context.Background()); err != nil {
+		log.Fatal("can't init storage: ", err)
+	}
+
 	eventsProcessor := telegram.New(
 		telegram_client.New(tgBotHost, mustToken()),
-		files.New(storagePath),
+		storage,
 	)
 	log.Printf("service started")
 
@@ -28,8 +39,8 @@ func main() {
 	if err := consumer.Start(); err != nil {
 		log.Fatal(err.Error())
 	}
-
 }
+
 func mustToken() string {
 	token := flag.String(
 		"tg-bot-token",
